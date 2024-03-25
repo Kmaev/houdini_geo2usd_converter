@@ -92,12 +92,17 @@ class KitBashGeometryImport:
         attrib_wrangle = file_sop.createOutputNode("attribwrangle")
         attrib_wrangle.parm("class").set(1)
         attrib_wrangle.parm("snippet").set(
-            's@path = "{}";'.format(read[geometry_file]["asset_name"])
-        )
+            'string split[] = split(s@shop_materialpath, "/"); \n s@path = split[-1];')
+
+        delete = attrib_wrangle.createOutputNode("attribdelete")
+        delete.parm("primdel").set("shop_materialpath")
+
+
 
         # output
-        output_sop = attrib_wrangle.createOutputNode("output")
-        mat_lib = hou.node(self.stage_path).createNode("materiallibrary")
+        output_sop = delete.createOutputNode("output")
+
+
         prim = hou.node(self.stage_path).createNode("primitive")
         prim.parm("primpath").set("/main")
         prim.parm("primkind").set("assembly")
@@ -106,21 +111,19 @@ class KitBashGeometryImport:
 
         graft_stages.setInput(0, prim)
         graft_stages.setNextInput(sop_create)
+        mat_lib = hou.node(self.stage_path).createNode("materiallibrary")
+        mat_lib.setInput(0, graft_stages)
 
-        graft_stages.setNextInput(mat_lib)
 
-        assign_mat = graft_stages.createOutputNode("assignmaterial")
+        assign_mat = mat_lib.createOutputNode("assignmaterial")
 
         self.create_materialx_library(geometry_file, mat_lib)
+
         _materials = list(read[geometry_file]["materials"].keys())
         assign_mat.parm("nummaterials").set(len(_materials))
 
         for mat in _materials:
-            mat_path = (
-                    prim.parm("primpath").evalAsString()
-                    + "/"
-                    + mat_lib.name()
-                    + "/"
+            mat_path = ("/"
                     + "materials"
                     + "/"
                     + mat
@@ -132,8 +135,8 @@ class KitBashGeometryImport:
                     + "/"
                     + sop_create.name()
                     + "/"
-                    + read[geometry_file]["asset_name"] + "/shop_materialpath_"
-                    + read[geometry_file]["materials"][mat]["shop_materialpath"].replace("/", "_")
+                    + mat
+                    + "*" # added to make the same material librery work with destruction
             )
             assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
             assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
