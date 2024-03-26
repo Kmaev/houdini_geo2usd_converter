@@ -1,6 +1,7 @@
 import os
 import hou
 import json
+import sys
 
 
 scheme = {
@@ -9,13 +10,14 @@ scheme = {
     "metallic_texture": "metalness",
     "opaccolor_texture": "opacity",
     "baseNormal_texture": "normal",
+    "emitcolor_texture" : "emission_color"
 }
 
 
-class KitBashGeometryImport:
-    def __init__(self):
+class CAT_GeometryImport:
+    def __init__(self, json_file):
         self.stage_path = "stage/"
-        self.metadata  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets_metadata.json")
+        self.metadata  = json_file
 
         pass
 
@@ -112,6 +114,7 @@ class KitBashGeometryImport:
         graft_stages.setInput(0, prim)
         graft_stages.setNextInput(sop_create)
         mat_lib = hou.node(self.stage_path).createNode("materiallibrary")
+        mat_lib.parm("matpathprefix").set("/main/materials/")
         mat_lib.setInput(0, graft_stages)
 
 
@@ -123,7 +126,7 @@ class KitBashGeometryImport:
         assign_mat.parm("nummaterials").set(len(_materials))
 
         for mat in _materials:
-            mat_path = ("/"
+            mat_path = ("/main/"
                     + "materials"
                     + "/"
                     + mat
@@ -140,6 +143,15 @@ class KitBashGeometryImport:
             )
             assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
             assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
+
+        usd_rop = assign_mat.createOutputNode("usd_rop")
+        output_path = geometry_file.split("/")
+        output_path = output_path[:len(output_path) -2]
+        output_path = "/".join(output_path) + "/" +"usd" + "/" + read[geometry_file]["asset_name"] + ".usd"
+        usd_rop.parm("lopoutput").set(output_path)
+
+        usd_rop.parm("execute").pressButton()
+
 
 
     def create_materialx_library(self, geometry_file, mat_lib):
@@ -170,5 +182,21 @@ class KitBashGeometryImport:
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
             mat_x.layoutChildren()
+
+
+    def convert_to_usd(self, remove_template = True):
+        with open(self.metadata, "r") as read_file:
+            read = json.load(read_file)
+        geo_files = list(read.keys())
+        stage = hou.node(self.stage_path)
+
+
+        for file in geo_files:
+            self.create_main_template(file)
+            if remove_template is True:
+                for child in stage.children():
+                    child.destroy()
+
+
 
 
