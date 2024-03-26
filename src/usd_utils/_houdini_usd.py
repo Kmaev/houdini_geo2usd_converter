@@ -6,10 +6,10 @@ import sys
 
 scheme = {
     "basecolor_texture": "base_color",
-    "rough_texture": "specular_color",
+    "rough_texture": "specular_roughness",
     "metallic_texture": "metalness",
     "opaccolor_texture": "opacity",
-    "baseNormal_texture": "normal",
+
     "emitcolor_texture" : "emission_color"
 }
 
@@ -179,8 +179,24 @@ class CAT_GeometryImport:
                     mtlx_st_surface.setInput(input, texture_node)
                     texture_node.parm("file").set(_materials[mat]["textures"][texture])
 
+
+
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
+
+            displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
+            texture_node = hou.node(mat_x.path()).createNode("mtlximage")
+            texture_node.parm("file").set(displ)
+            input_d = mtlx_diplacement.inputIndex("displacement")
+            mtlx_diplacement.setInput(input_d, texture_node)
+            mtlx_diplacement.parm("scale").set(0.01)
+
+
+            ao = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "ao")
+            texture_node = hou.node(mat_x.path()).createNode("mtlximage")
+            texture_node.parm("file").set(ao)
+            input_ao = mtlx_st_surface.inputIndex("specular_color")
+            mtlx_st_surface.setInput(input_ao, texture_node)
             mat_x.layoutChildren()
 
 
@@ -189,7 +205,6 @@ class CAT_GeometryImport:
             read = json.load(read_file)
         geo_files = list(read.keys())
         stage = hou.node(self.stage_path)
-
 
         for file in geo_files:
             self.create_main_template(file)
