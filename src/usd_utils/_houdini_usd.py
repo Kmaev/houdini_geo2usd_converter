@@ -15,9 +15,11 @@ scheme = {
 
 
 class CAT_GeometryImport:
-    def __init__(self, json_file):
+    def __init__(self, json_file, import_source):
         self.stage_path = "stage/"
         self.metadata  = json_file
+        self.import_source = import_source
+        self.scheme = r"E:\dev\cat\src\usd_utils\mat_scheme.json"
 
         pass
 
@@ -84,7 +86,13 @@ class CAT_GeometryImport:
         # Create sop lop
         sop_create = hou.node(self.stage_path).createNode("sopcreate", read[geometry_file]["asset_name"])  # change hardcoded name
         sop_create.parm("enable_partitionattribs").set(True)
+        sop_create.parm("partitionattribs").set("path")
         sop_create.parm("enable_pathattr").set(True)
+        sop_create.parm("enable_group").set(True)
+        sop_create.parm("group").set("*")
+        sop_create.parm("enable_grouptype").set(True)
+        sop_create.parm("enable_subsetgroups").set(True)
+        sop_create.parm("subsetgroups").set("*")
         # file sop
 
         file_sop = hou.node(sop_create.path() + "/sopnet/create").createNode("file")
@@ -155,6 +163,10 @@ class CAT_GeometryImport:
 
 
     def create_materialx_library(self, geometry_file, mat_lib):
+        with open(self.scheme, "r") as scheme_file:
+            scheme_read = json.load(scheme_file)
+        scheme = scheme_read[self.import_source]
+
         mat_lib_path = hou.node(mat_lib.path())
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
@@ -183,7 +195,7 @@ class CAT_GeometryImport:
 
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
-
+            # TODO: find a way to batch better the textures that are missing oin mantra
             displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
             texture_node = hou.node(mat_x.path()).createNode("mtlximage")
             texture_node.parm("file").set(displ)
