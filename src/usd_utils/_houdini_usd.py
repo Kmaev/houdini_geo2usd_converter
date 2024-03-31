@@ -3,17 +3,6 @@ import hou
 import json
 import sys
 
-
-scheme = {
-    "basecolor_texture": "base_color",
-    "rough_texture": "specular_roughness",
-    "metallic_texture": "metalness",
-    "opaccolor_texture": "opacity",
-
-    "emitcolor_texture" : "emission_color"
-}
-
-
 class CAT_GeometryImport:
     def __init__(self, json_file, import_source):
         self.stage_path = "stage/"
@@ -21,69 +10,12 @@ class CAT_GeometryImport:
         self.import_source = import_source
         self.scheme = r"E:\dev\cat\src\usd_utils\mat_scheme.json"
 
-        pass
-
-    # gather materials from geometry
-    def read_geo_file(self, node):
-        queue = [node]
-        while len(queue) > 0:
-            current = queue.pop(0)
-            if current.type().name() == "file":  # could be added another option to read from different types of file
-                geo = current.parm("file").evalAsString()
-
-                return geo
-            for node in current.inputs():
-                queue.append(node)
-    def get_geometry_data(self, node):
-        #open json file
-        with open(self.metadata, "r") as read_file:
-            read = json.load(read_file)
-
-
-        geometry_file = self.read_geo_file(node)
-
-
-        # Getting geo name
-        geo_name = geometry_file.split("/")[-1]
-        geo_name = geo_name.split(".")[0]
-
-        # Writing geomjetry file name and initializing textures dictionary
-        read[geometry_file] = {"asset_name": geo_name, "materials": {}}
-
-        # Packing geo based on material path
-        pack_all = node.createOutputNode("pack")  # thsi is why pack node is created twice
-        pack_all.parm("packbyname").set(True)
-        pack_all.parm("nameattribute").set("shop_materialpath")
-        pack_all.parm("transfer_attributes").set("shop_materialpath")
-        hou_geo = pack_all.geometry()
-
-        # Getting textures data
-        for mat in hou_geo.primStringAttribValues("shop_materialpath"):
-            shader = hou.node(mat + "/principledshader1")
-
-
-            mat_name = mat.split("/")[-1]
-            read[geometry_file]["materials"][mat_name]= {"shop_materialpath": mat, "textures" : {}}
-
-
-            for parm in shader.parms():
-                if parm.name().endswith("texture"):
-                    if parm.evalAsString() != "":
-                        read[geometry_file]["materials"][mat_name]["textures"][parm.name()] = parm.evalAsString()
-
-        # Writing json file
-        with open(self.metadata, "w") as output_file:
-            json.dump(read, output_file, indent=4)
-
-        # Pack remove
-        pack_all.destroy()
-
-
+        #Create main usd template based on json file data
     def create_main_template(self, geometry_file):
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
 
-        # Create sop lop
+        # Create Sop Create
         sop_create = hou.node(self.stage_path).createNode("sopcreate", read[geometry_file]["asset_name"])  # change hardcoded name
         sop_create.parm("enable_partitionattribs").set(True)
         sop_create.parm("partitionattribs").set("path")
@@ -106,12 +38,8 @@ class CAT_GeometryImport:
 
         delete = attrib_wrangle.createOutputNode("attribdelete")
         delete.parm("primdel").set("shop_materialpath")
-
-
-
         # output
         output_sop = delete.createOutputNode("output")
-
 
         prim = hou.node(self.stage_path).createNode("primitive")
         prim.parm("primpath").set("/main")
@@ -160,8 +88,6 @@ class CAT_GeometryImport:
 
         usd_rop.parm("execute").pressButton()
 
-
-
     def create_materialx_library(self, geometry_file, mat_lib):
         with open(self.scheme, "r") as scheme_file:
             scheme_read = json.load(scheme_file)
@@ -190,12 +116,9 @@ class CAT_GeometryImport:
 
                     mtlx_st_surface.setInput(input, texture_node)
                     texture_node.parm("file").set(_materials[mat]["textures"][texture])
-
-
-
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
-            # TODO: find a way to batch better the textures that are missing oin mantra
+            # TODO: find a way to patch better the textures that are missing in mantra
             displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
             texture_node = hou.node(mat_x.path()).createNode("mtlximage")
             texture_node.parm("file").set(displ)
@@ -223,7 +146,60 @@ class CAT_GeometryImport:
             if remove_template is True:
                 for child in stage.children():
                     child.destroy()
+class CAT_ExtractMaterialsData:
+    def __init__(self, json_file):
+        self.metadata = json_file
 
+    def read_geo_file(self, node):
+        queue = [node]
+        while len(queue) > 0:
+            current = queue.pop(0)
+            if current.type().name() == "file":  # could be added another option to read from different types of file
+                geo = current.parm("file").evalAsString()
 
+                return geo
+            for node in current.inputs():
+                queue.append(node)
 
+    def get_geometry_data(self, node):
+        # open json file
+        with open(self.metadata, "r") as read_file:
+            read = json.load(read_file)
 
+        geometry_file = self.read_geo_file(node)
+
+        # Getting geo name
+        geo_name = geometry_file.split("/")[-1]
+        geo_name = geo_name.split(".")[0]
+
+        # Writing geomjetry file name and initializing textures dictionary
+        read[geometry_file] = {"asset_name": geo_name, "materials": {}}
+
+        # Packing geo based on material path
+        pack_all = node.createOutputNode("pack")  # thsi is why pack node is created twice
+        pack_all.parm("packbyname").set(True)
+        pack_all.parm("nameattribute").set("shop_materialpath")
+        pack_all.parm("transfer_attributes").set("shop_materialpath")
+        hou_geo = pack_all.geometry()
+
+        # Getting textures data
+        for mat in hou_geo.primStringAttribValues("shop_materialpath"):
+            if hou.node(mat).type().name() == "principledshader::2.0":
+                shader = hou.node(mat)
+            else:
+                shader = hou.node(mat + "/principledshader1")
+
+            mat_name = mat.split("/")[-1]
+            read[geometry_file]["materials"][mat_name] = {"shop_materialpath": mat, "textures": {}}
+
+            for parm in shader.parms():
+                if parm.name().endswith("texture"):
+                    if parm.evalAsString() != "":
+                        read[geometry_file]["materials"][mat_name]["textures"][parm.name()] = parm.evalAsString()
+
+        # Writing json file
+        with open(self.metadata, "w") as output_file:
+            json.dump(read, output_file, indent=4)
+
+        # Pack remove
+        pack_all.destroy()
