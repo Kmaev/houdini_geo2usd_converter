@@ -1,9 +1,11 @@
 {
-    "KB": {
+    "mantra": {
         "basecolor_texture": "base_color",
         "rough_texture": "specular_roughness",
         "metallic_texture": "metalness",
         "opaccolor_texture": "opacity",
-        "emitcolor_texture" : "emission_color"
+        "emitcolor_texture" : "emission_color",
+        "dispTex_texture": "displacement"
+
     }
 }

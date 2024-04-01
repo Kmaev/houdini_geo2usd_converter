@@ -3,20 +3,29 @@ import hou
 import json
 import sys
 
-class CAT_GeometryImport:
-    def __init__(self, json_file, import_source):
-        self.stage_path = "stage/"
-        self.metadata  = json_file
-        self.import_source = import_source
-        self.scheme = r"E:\dev\cat\src\usd_utils\mat_scheme.json"
 
-        #Create main usd template based on json file data
+class CAT_GeometryImport:
+    def __init__(self, json_file, import_render, source_tag):
+        self.stage_path = "stage/"
+        self.metadata = json_file
+        self.import_render = import_render
+        self.source_tag = source_tag
+        self.scheme = r"E:\dev\cat\src\usd_utils\parameters_scheme.json"
+        self.wrangle_code = ""
+
+        # Create main usd template based on json file data
+
     def create_main_template(self, geometry_file):
-        with open(self.metadata, "r") as read_file:
-            read = json.load(read_file)
+        pass
+    def create_graft_stages(self):
+        graft_stages = hou.node(self.stage_path).createNode("graftstages")
+        return graft_stages
+    def create_sop_read(self, geometry_file, metadata, wrangle_code):
+
 
         # Create Sop Create
-        sop_create = hou.node(self.stage_path).createNode("sopcreate", read[geometry_file]["asset_name"])  # change hardcoded name
+        sop_create = hou.node(self.stage_path).createNode("sopcreate",
+                                                          metadata[self.source_tag][geometry_file]["asset_name"])  # change hardcoded name
         sop_create.parm("enable_partitionattribs").set(True)
         sop_create.parm("partitionattribs").set("path")
         sop_create.parm("enable_pathattr").set(True)
@@ -33,72 +42,50 @@ class CAT_GeometryImport:
         # attrib wrangle
         attrib_wrangle = file_sop.createOutputNode("attribwrangle")
         attrib_wrangle.parm("class").set(1)
-        attrib_wrangle.parm("snippet").set(
-            'string split[] = split(s@shop_materialpath, "/"); \n s@path = split[-1];')
+        attrib_wrangle.parm("snippet").set(wrangle_code)
 
         delete = attrib_wrangle.createOutputNode("attribdelete")
         delete.parm("primdel").set("shop_materialpath")
         # output
         output_sop = delete.createOutputNode("output")
 
+        return sop_create
+    def create_prim(self):
         prim = hou.node(self.stage_path).createNode("primitive")
         prim.parm("primpath").set("/main")
         prim.parm("primkind").set("assembly")
+        return prim
 
-        graft_stages = hou.node(self.stage_path).createNode("graftstages")
 
-        graft_stages.setInput(0, prim)
-        graft_stages.setNextInput(sop_create)
+    def create_material_lib(self):
         mat_lib = hou.node(self.stage_path).createNode("materiallibrary")
         mat_lib.parm("matpathprefix").set("/main/materials/")
-        mat_lib.setInput(0, graft_stages)
+        # mat_lib.setInput(0, graft_stages)
 
+        return mat_lib
 
-        assign_mat = mat_lib.createOutputNode("assignmaterial")
-
-        self.create_materialx_library(geometry_file, mat_lib)
-
-        _materials = list(read[geometry_file]["materials"].keys())
-        assign_mat.parm("nummaterials").set(len(_materials))
-
-        for mat in _materials:
-            mat_path = ("/main/"
-                    + "materials"
-                    + "/"
-                    + mat
-            )
-            prim_path = (
-                    prim.parm("primpath").evalAsString()
-                    + "/"
-                    + sop_create.name()
-                    + "/"
-                    + sop_create.name()
-                    + "/"
-                    + mat
-                    + "*" # added to make the same material librery work with destruction
-            )
-            assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
-            assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
-
-        usd_rop = assign_mat.createOutputNode("usd_rop")
+    def create_usd_rop(self, geometry_file, metadata, source_tag):
+        usd_rop = hou.node(self.stage_path).createNode("usd_rop")
         output_path = geometry_file.split("/")
-        output_path = output_path[:len(output_path) -2]
-        output_path = "/".join(output_path) + "/" +"usd" + "/" + read[geometry_file]["asset_name"] + ".usd"
-        usd_rop.parm("lopoutput").set(output_path)
 
-        usd_rop.parm("execute").pressButton()
+        output_path = output_path[:len(output_path) - 2]
+
+        output_path = "/".join(output_path) + "/" + "usd" + "/" + metadata[source_tag][geometry_file]["asset_name"] + ".usd"
+        usd_rop.parm("lopoutput").set(output_path)
+        return usd_rop
+
 
     def create_materialx_library(self, geometry_file, mat_lib):
         with open(self.scheme, "r") as scheme_file:
             scheme_read = json.load(scheme_file)
-        scheme = scheme_read[self.import_source]
+        scheme = scheme_read[self.import_render]
 
         mat_lib_path = hou.node(mat_lib.path())
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
-        _materials = read[geometry_file]["materials"]
+        _materials = read[self.source_tag][geometry_file]["materials"]
         for mat in _materials:
-            mat_x = mat_lib_path.createNode("subnet",mat)
+            mat_x = mat_lib_path.createNode("subnet", mat)
             mat_x.setMaterialFlag(True)
             output = hou.node(mat_x.path() + "/suboutput1")
             mtlx_st_surface = output.createInputNode(0, "mtlxstandard_surface")
@@ -118,24 +105,34 @@ class CAT_GeometryImport:
                     texture_node.parm("file").set(_materials[mat]["textures"][texture])
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
-            # TODO: find a way to patch better the textures that are missing in mantra
-            displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
-            texture_node = hou.node(mat_x.path()).createNode("mtlximage")
-            texture_node.parm("file").set(displ)
-            input_d = mtlx_diplacement.inputIndex("displacement")
-            mtlx_diplacement.setInput(input_d, texture_node)
-            mtlx_diplacement.parm("scale").set(0.01)
+            # # TODO: find a way to patch better the textures that are missing in mantra
+            # displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
+            # texture_node = hou.node(mat_x.path()).createNode("mtlximage")
+            # texture_node.parm("file").set(displ)
+            # input_d = mtlx_diplacement.inputIndex("displacement")
+            # mtlx_diplacement.setInput(input_d, texture_node)
+            # mtlx_diplacement.parm("scale").set(0.01)
+            #
+            # ao = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "ao")
+            # texture_node = hou.node(mat_x.path()).createNode("mtlximage")
+            # texture_node.parm("file").set(ao)
+            # input_ao = mtlx_st_surface.inputIndex("specular_color")
+            # mtlx_st_surface.setInput(input_ao, texture_node)
+            # mat_x.layoutChildren()
 
+    def patch_texture(self, source_texture, target_text_name):
+        _st_end = source_texture.split("/")[-1].split(".")[0].split("_")[-1]
 
-            ao = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "ao")
-            texture_node = hou.node(mat_x.path()).createNode("mtlximage")
-            texture_node.parm("file").set(ao)
-            input_ao = mtlx_st_surface.inputIndex("specular_color")
-            mtlx_st_surface.setInput(input_ao, texture_node)
-            mat_x.layoutChildren()
+        texture = source_texture.replace(_st_end, target_text_name)
+        print(texture)
+        return texture
+    def add_texture(self, texture, mat, mtlx_node, mtlx_input_name):
+        texture_node = hou.node(mat.path()).createNode("mtlximage")
+        texture_node.parm("file").set(texture)
+        input_d = mtlx_node.inputIndex(mtlx_input_name)
+        mtlx_node.setInput(input_d, texture_node)
 
-
-    def convert_to_usd(self, remove_template = True):
+    def convert_to_usd(self, remove_template=True):
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
         geo_files = list(read.keys())
@@ -146,9 +143,117 @@ class CAT_GeometryImport:
             if remove_template is True:
                 for child in stage.children():
                     child.destroy()
+
+class KB_GeometryImport(CAT_GeometryImport):
+    def __init__(self,  json_file, import_render, source_tag, add_displacment = False):
+        super().__init__(json_file, import_render, source_tag)
+        self.wrangle_code = "string split[] = split(s@shop_materialpath, '/');\ns@path = split[-1];"
+        self.add_displacement = add_displacment
+        self.source_tag = source_tag
+        self.import_render = import_render
+
+    def create_main_template(self, geometry_file):
+        with open(self.metadata, "r") as read_file:
+            read = json.load(read_file)
+
+        sop_create = self.create_sop_read(geometry_file, read, self.wrangle_code)
+        prim = self.create_prim()
+        # Create graft stages
+
+        graft_stages = self.create_graft_stages()
+        graft_stages.setInput(0, prim)
+        graft_stages.setNextInput(sop_create)
+        mat_lib = self.create_material_lib()
+        mat_lib.setInput(0, graft_stages)
+        self.create_materialx_library(geometry_file, mat_lib)
+        assign_mat = mat_lib.createOutputNode("assignmaterial")
+
+        _materials = list(read[self.source_tag][geometry_file]["materials"].keys())
+        assign_mat.parm("nummaterials").set(len(_materials))
+
+        for mat in _materials:
+            mat_path = ("/main/"
+                        + "materials"
+                        + "/"
+                        + mat
+                        )
+            prim_path = (
+                    prim.parm("primpath").evalAsString()
+                    + "/"
+                    + sop_create.name()
+                    + "/"
+                    + sop_create.name()
+                    + "/"
+                    + mat
+                    + "*"  # added to make the same material librery work with destruction
+            )
+            assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
+            assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
+
+        usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
+        usd_rop.setInput(0, assign_mat)
+
+
+
+        #usd_rop.parm("execute").pressButton()
+
+
+class MS_GeometryImport(CAT_GeometryImport):
+    def __init__(self,  json_file, import_render, source_tag, add_displacment = False):
+        super().__init__(json_file, import_render, source_tag)
+        self.wrangle_code = "s@path = s@name;"
+        self.add_displacement = add_displacment
+        self.source_tag = source_tag
+        self.import_render = import_render
+
+    def create_main_template(self, geometry_file):
+        with open(self.metadata, "r") as read_file:
+            read = json.load(read_file)
+
+        sop_create = self.create_sop_read(geometry_file, read, self.wrangle_code)
+        prim = self.create_prim()
+        # Create graft stages
+
+        graft_stages = self.create_graft_stages()
+        graft_stages.setInput(0, prim)
+        graft_stages.setNextInput(sop_create)
+        mat_lib = self.create_material_lib()
+        mat_lib.setInput(0, graft_stages)
+        self.create_materialx_library(geometry_file, mat_lib)
+        assign_mat = mat_lib.createOutputNode("assignmaterial")
+
+        _materials = list(read[self.source_tag][geometry_file]["materials"].keys())
+        assign_mat.parm("nummaterials").set(len(_materials))
+
+        for mat in _materials:
+            mat_path = ("/main/"
+                        + "materials"
+                        + "/"
+                        + mat
+                        )
+            prim_path = (
+                    prim.parm("primpath").evalAsString()
+                    + "/"
+                    + sop_create.name()
+                    + "/"
+                    + sop_create.name()
+                    + "/"
+                    + "*"  # added to make the same material librery work with destruction
+            )
+            assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
+            assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
+
+        usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
+        usd_rop.setInput(0, assign_mat)
+
+
+
+
 class CAT_ExtractMaterialsData:
-    def __init__(self, json_file):
+    def __init__(self, json_file, source_tag):
         self.metadata = json_file
+        self.source_tag = source_tag
+
 
     def read_geo_file(self, node):
         queue = [node]
@@ -173,7 +278,8 @@ class CAT_ExtractMaterialsData:
         geo_name = geo_name.split(".")[0]
 
         # Writing geomjetry file name and initializing textures dictionary
-        read[geometry_file] = {"asset_name": geo_name, "materials": {}}
+        read[self.source_tag] = {geometry_file:{}}
+        read[self.source_tag][geometry_file]={"asset_name": geo_name, "materials": {}}
 
         # Packing geo based on material path
         pack_all = node.createOutputNode("pack")  # thsi is why pack node is created twice
@@ -190,12 +296,12 @@ class CAT_ExtractMaterialsData:
                 shader = hou.node(mat + "/principledshader1")
 
             mat_name = mat.split("/")[-1]
-            read[geometry_file]["materials"][mat_name] = {"shop_materialpath": mat, "textures": {}}
+            read[self.source_tag][geometry_file]["materials"][mat_name] = {"shop_materialpath": mat, "textures": {}}
 
             for parm in shader.parms():
                 if parm.name().endswith("texture"):
                     if parm.evalAsString() != "":
-                        read[geometry_file]["materials"][mat_name]["textures"][parm.name()] = parm.evalAsString()
+                        read[self.source_tag][geometry_file]["materials"][mat_name]["textures"][parm.name()] = parm.evalAsString()
 
         # Writing json file
         with open(self.metadata, "w") as output_file:
