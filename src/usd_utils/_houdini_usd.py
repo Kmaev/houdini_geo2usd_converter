@@ -5,13 +5,17 @@ import sys
 
 
 class CAT_GeometryImport:
-    def __init__(self, json_file, import_render, source_tag):
+    def __init__(self, json_file, import_render, source_tag, add_displacement=False, add_extra_tex=False):
         self.stage_path = "stage/"
         self.metadata = json_file
         self.import_render = import_render
         self.source_tag = source_tag
-        self.scheme = r"E:\dev\cat\src\usd_utils\parameters_scheme.json"
+        self.parameters_scheme = r"E:\dev\cat\src\usd_utils\parameters_scheme.json"
+        self.texture_scheme = r"E:\dev\cat\src\usd_utils\inputs_scheme.json"
+
         self.wrangle_code = ""
+        self.add_extra_tex = add_extra_tex
+        self.add_displacement = add_displacement
 
         # Create main usd template based on json file data
 
@@ -76,7 +80,7 @@ class CAT_GeometryImport:
 
 
     def create_materialx_library(self, geometry_file, mat_lib):
-        with open(self.scheme, "r") as scheme_file:
+        with open(self.parameters_scheme, "r") as scheme_file:
             scheme_read = json.load(scheme_file)
         scheme = scheme_read[self.import_render]
 
@@ -92,6 +96,7 @@ class CAT_GeometryImport:
 
             mtlx_diplacement = output.createInputNode(1, "mtlxdisplacement")
 
+
             mat_properties = output.createInputNode(2, "kma_material_properties")
 
             for texture in _materials[mat]["textures"]:
@@ -105,20 +110,25 @@ class CAT_GeometryImport:
                     texture_node.parm("file").set(_materials[mat]["textures"][texture])
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
-            # # TODO: find a way to patch better the textures that are missing in mantra
-            # displ = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "height")
-            # texture_node = hou.node(mat_x.path()).createNode("mtlximage")
-            # texture_node.parm("file").set(displ)
-            # input_d = mtlx_diplacement.inputIndex("displacement")
-            # mtlx_diplacement.setInput(input_d, texture_node)
-            # mtlx_diplacement.parm("scale").set(0.01)
-            #
-            # ao = _materials[mat]["textures"]["basecolor_texture"].replace("basecolor", "ao")
-            # texture_node = hou.node(mat_x.path()).createNode("mtlximage")
-            # texture_node.parm("file").set(ao)
-            # input_ao = mtlx_st_surface.inputIndex("specular_color")
-            # mtlx_st_surface.setInput(input_ao, texture_node)
-            # mat_x.layoutChildren()
+            if self.add_extra_tex == True:
+                with open(self.texture_scheme, "r") as tex_scheme_file:
+                    tex_scheme_read = json.load(tex_scheme_file)
+                tex_scheme = tex_scheme_read[self.source_tag]["surface"]
+                for name in tex_scheme:
+                    _tex_data = list(_materials[mat]["textures"].items())[0]
+                    new_tex = self.patch_texture(_tex_data[1], name)
+                    self.add_texture(new_tex, mat_x, mtlx_st_surface, tex_scheme[name])
+            if self.add_displacement == True:
+                with open(self.texture_scheme, "r") as tex_scheme_file:
+                    tex_scheme_read = json.load(tex_scheme_file)
+                tex_scheme = tex_scheme_read[self.source_tag]["displacement"]
+                for name in tex_scheme:
+                    _tex_data = list(_materials[mat]["textures"].items())[0]
+                    new_tex = self.patch_texture(_tex_data[1], name)
+                    self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_scheme[name])
+                    mtlx_diplacement.parm("scale").set(0.01)
+            mat_x.layoutChildren()
+        mat_lib.layoutChildren()
 
     def patch_texture(self, source_texture, target_text_name):
         _st_end = source_texture.split("/")[-1].split(".")[0].split("_")[-1]
@@ -145,12 +155,12 @@ class CAT_GeometryImport:
                     child.destroy()
 
 class KB_GeometryImport(CAT_GeometryImport):
-    def __init__(self,  json_file, import_render, source_tag, add_displacment = False):
-        super().__init__(json_file, import_render, source_tag)
+    def __init__(self,  json_file, import_render, source_tag, add_displacement = True, add_extra_tex = False, execute_rop= False):
+        super().__init__(json_file, import_render, source_tag,  add_displacement, add_extra_tex)
         self.wrangle_code = "string split[] = split(s@shop_materialpath, '/');\ns@path = split[-1];"
-        self.add_displacement = add_displacment
         self.source_tag = source_tag
         self.import_render = import_render
+        self.execute_rop = execute_rop
 
     def create_main_template(self, geometry_file):
         with open(self.metadata, "r") as read_file:
@@ -167,6 +177,7 @@ class KB_GeometryImport(CAT_GeometryImport):
         mat_lib.setInput(0, graft_stages)
         self.create_materialx_library(geometry_file, mat_lib)
         assign_mat = mat_lib.createOutputNode("assignmaterial")
+
 
         _materials = list(read[self.source_tag][geometry_file]["materials"].keys())
         assign_mat.parm("nummaterials").set(len(_materials))
@@ -189,22 +200,24 @@ class KB_GeometryImport(CAT_GeometryImport):
             )
             assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
             assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
+            assign_mat.setDisplayFlag(True)
 
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
         usd_rop.setInput(0, assign_mat)
 
 
-
-        #usd_rop.parm("execute").pressButton()
+        if self.execute_rop == True:
+            usd_rop.parm("execute").pressButton()
 
 
 class MS_GeometryImport(CAT_GeometryImport):
-    def __init__(self,  json_file, import_render, source_tag, add_displacment = False):
-        super().__init__(json_file, import_render, source_tag)
+    def __init__(self,  json_file, import_render, source_tag, add_displacment = True, add_extra_tex = False, execute_rop = False):
+        super().__init__(json_file, import_render, source_tag, add_displacment, add_extra_tex)
         self.wrangle_code = "s@path = s@name;"
-        self.add_displacement = add_displacment
         self.source_tag = source_tag
         self.import_render = import_render
+        self.execute_rop = execute_rop
+
 
     def create_main_template(self, geometry_file):
         with open(self.metadata, "r") as read_file:
@@ -243,16 +256,21 @@ class MS_GeometryImport(CAT_GeometryImport):
             assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
             assign_mat.parm("matspecpath{}".format(_materials.index(mat) + 1)).set(mat_path)
 
+        transform = assign_mat.createOutputNode("xform")
+        transform.parm("scale").set("0.01")
+        transform.setDisplayFlag(True)
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
-        usd_rop.setInput(0, assign_mat)
+        usd_rop.setInput(0, transform)
 
-
+        if self.execute_rop == True:
+            usd_rop.parm("execute").pressButton()
 
 
 class CAT_ExtractMaterialsData:
     def __init__(self, json_file, source_tag):
         self.metadata = json_file
         self.source_tag = source_tag
+
 
 
     def read_geo_file(self, node):
@@ -276,10 +294,13 @@ class CAT_ExtractMaterialsData:
         # Getting geo name
         geo_name = geometry_file.split("/")[-1]
         geo_name = geo_name.split(".")[0]
-
+        try:
         # Writing geomjetry file name and initializing textures dictionary
-        read[self.source_tag] = {geometry_file:{}}
-        read[self.source_tag][geometry_file]={"asset_name": geo_name, "materials": {}}
+
+            read[self.source_tag][geometry_file]={"asset_name": geo_name, "materials": {}}
+        except:
+            read[self.source_tag] = {geometry_file: {}}
+            read[self.source_tag][geometry_file] = {"asset_name": geo_name, "materials": {}}
 
         # Packing geo based on material path
         pack_all = node.createOutputNode("pack")  # thsi is why pack node is created twice
@@ -309,3 +330,4 @@ class CAT_ExtractMaterialsData:
 
         # Pack remove
         pack_all.destroy()
+

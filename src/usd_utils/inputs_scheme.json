@@ -1,0 +1,15 @@
+{
+    "KB": {
+        "displacement": {
+            "height": "displacement"
+        },
+        "surface": {
+            "ao": "specular_color"
+        }
+    },
+    "MS": {
+        "displacement": {
+            "Displacement": "displacement"
+        }
+    }
+}
