@@ -8,6 +8,7 @@
         }
     },
     "MS": {
+        "surface": {},
         "displacement": {
             "Displacement": "displacement"
         }

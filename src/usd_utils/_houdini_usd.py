@@ -2,6 +2,7 @@ import os
 import hou
 import json
 import sys
+import time
 
 
 class CAT_GeometryImport:
@@ -88,6 +89,7 @@ class CAT_GeometryImport:
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
         _materials = read[self.source_tag][geometry_file]["materials"]
+
         for mat in _materials:
             mat_x = mat_lib_path.createNode("subnet", mat)
             mat_x.setMaterialFlag(True)
@@ -128,7 +130,11 @@ class CAT_GeometryImport:
                     self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_scheme[name])
                     mtlx_diplacement.parm("scale").set(0.01)
             mat_x.layoutChildren()
+
+
+
         mat_lib.layoutChildren()
+
 
     def patch_texture(self, source_texture, target_text_name):
         _st_end = source_texture.split("/")[-1].split(".")[0].split("_")[-1]
@@ -204,10 +210,18 @@ class KB_GeometryImport(CAT_GeometryImport):
 
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
         usd_rop.setInput(0, assign_mat)
+        hou.node(self.stage_path).layoutChildren()
 
 
         if self.execute_rop == True:
             usd_rop.parm("execute").pressButton()
+            sop_create.destroy()
+            prim.destroy()
+            mat_lib.destroy()
+            graft_stages.destroy()
+            assign_mat.destroy()
+            usd_rop.destroy()
+            print("{} converted to usd".format(geometry_file))
 
 
 class MS_GeometryImport(CAT_GeometryImport):
@@ -261,9 +275,19 @@ class MS_GeometryImport(CAT_GeometryImport):
         transform.setDisplayFlag(True)
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
         usd_rop.setInput(0, transform)
+        hou.node(self.stage_path).layoutChildren()
 
         if self.execute_rop == True:
             usd_rop.parm("execute").pressButton()
+            sop_create.destroy()
+            prim.destroy()
+            mat_lib.destroy()
+            graft_stages.destroy()
+            assign_mat.destroy()
+            transform.destroy()
+            usd_rop.destroy()
+            print("{} converted to usd".format(geometry_file))
+
 
 
 class CAT_ExtractMaterialsData:
@@ -330,4 +354,27 @@ class CAT_ExtractMaterialsData:
 
         # Pack remove
         pack_all.destroy()
+
+
+def test():
+    import hou
+    import time
+
+    num_tasks = 100
+    files = []
+    for i in range(0, num_tasks):
+        files.append("filename_" + str(i))
+
+    with hou.InterruptableOperation("Performing Tasks", long_operation_name="Filenames",
+                                    open_interrupt_dialog=True) as op:
+        for fi, filename in enumerate(files):
+            op.updateLongProgress(fi / float(len(files) - 1), "Processing Files {}/{}".format(fi + 1, len(files)))
+            with hou.InterruptableOperation(filename) as subop:
+                for i in range(10):
+                    time.sleep(0.01)
+                    percent = float(i) / 9.0
+                    subop.updateProgress(percent)
+
+
+
 
