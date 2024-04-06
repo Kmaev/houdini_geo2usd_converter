@@ -1,13 +1,10 @@
 from importlib import reload
+from PySide2 import QtWidgets
 import json
 import os
 import hou
-import time
 import _houdini_usd
 reload(_houdini_usd)
-
-
-from PySide2 import QtWidgets
 
 class PublishDialog(QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -16,9 +13,9 @@ class PublishDialog(QtWidgets.QDialog):
         self.project_file = r"E:\dev\cat\src\usd_utils\assets_metadata.json"
         libraries = {"KB" : "KitBash", "MS" : "Megascans"}
         self.selected_assets = []
+
         self.central_layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.central_layout)
-
         self.resize(700, 600)
         self.setWindowTitle('CAT_USD')
 
@@ -39,14 +36,10 @@ class PublishDialog(QtWidgets.QDialog):
         library_list = self.read.keys()
 
         for i in library_list:
-
             item = QtWidgets.QListWidgetItem()
             item.setText(libraries[i])
             item.setData(1, i)
-
             self.lib_list.addItem(item)
-
-
 
         self.libraries_grp = QtWidgets.QGroupBox('Libreries')
         self.libraries_grp_layout = QtWidgets.QHBoxLayout()
@@ -63,7 +56,6 @@ class PublishDialog(QtWidgets.QDialog):
         self.load_template = QtWidgets.QPushButton("Load Template", self)
         self.load_template.setEnabled(False)
 
-
         # Add the group box to the central layout
         self.central_layout.addWidget(self.libraries_grp)
         self.central_layout.addWidget(self.assets_grp)
@@ -73,8 +65,7 @@ class PublishDialog(QtWidgets.QDialog):
         self.central_layout.addWidget(self.save_in_bg)
         self.central_layout.addWidget(self.load_template)
 
-
-        self.lib_list.itemSelectionChanged.connect(self.onProjectChanged)
+        self.lib_list.itemSelectionChanged.connect(self.onLibChanged)
         self.assets_list.itemSelectionChanged.connect(
             self.onAssetChanged)
         self.save_in_bg.clicked.connect(self.onSaveInBg)
@@ -94,9 +85,8 @@ class PublishDialog(QtWidgets.QDialog):
             self.selected_assets.append(str(self.assets_list.selectedItems()[i].data(1)))
         return self.selected_assets if self.selected_assets else None
 
-    def onProjectChanged(self):
+    def onLibChanged(self):
         self.assets_list.clear()
-
         lib = self.selectedLibrary()
         assets_list = sorted(list(self.read[lib].keys()))
         if not lib:
@@ -105,13 +95,15 @@ class PublishDialog(QtWidgets.QDialog):
             asset_folder = i.split("/")
             name = asset_folder.pop()
             name = name.split(".")
+
             file_type = name.pop()
             name = "".join(name)
+            if lib == "MS":
+                name = asset_folder.pop()
             item = QtWidgets.QListWidgetItem()
             item.setText(name)
             item.setData(1, i)
             self.assets_list.addItem(item)
-
 
     def onAssetChanged(self):
         if not self.assets_list.selectedItems():
@@ -127,7 +119,6 @@ class PublishDialog(QtWidgets.QDialog):
         self.add_displacement_texture.setEnabled(True)
         self.selectedAsset()
 
-
     def onSaveInBg(self):
         add_missing_tex = self.add_missing_textures.isChecked()
         add_displ_tex = self.add_displacement_texture.isChecked()
@@ -136,7 +127,7 @@ class PublishDialog(QtWidgets.QDialog):
                                         open_interrupt_dialog=True) as op:
             for i in self.selected_assets:
                 op.updateLongProgress(self.selected_assets.index(i) / float(len(self.selected_assets)),
-                                      "Converting to usd {}/{}".format(self.selected_assets.index(i) + 1,
+                                      "Converting to .usd {}/{}".format(self.selected_assets.index(i) + 1,
                                                                     len(self.selected_assets)))
                 if lib_tag == "MS":
                     template1 = _houdini_usd.MS_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex, add_missing_tex, True)
@@ -145,6 +136,7 @@ class PublishDialog(QtWidgets.QDialog):
                     template1 = _houdini_usd.KB_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
                                                                add_missing_tex, True)
                 template1.create_main_template(i)
+
     def onLoadTemplate(self):
         add_missing_tex = self.add_missing_textures.isChecked()
         add_displ_tex = self.add_displacement_texture.isChecked()
