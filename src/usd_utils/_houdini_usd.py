@@ -1,5 +1,6 @@
 import json
 import hou
+import re
 
 
 class CAT_GeometryImport:
@@ -92,6 +93,10 @@ class CAT_GeometryImport:
             mtlx_diplacement = output.createInputNode(1, "mtlxdisplacement")
             mat_properties = output.createInputNode(2, "kma_material_properties")
 
+            match = re.search("\d*({})\d*".format("Gold"), mat)
+            if match:
+                mtlx_st_surface.parm("specular_IOR").set(0.47)
+
             for texture in _materials[mat]["textures"]:
                 texture_node = hou.node(mat_x.path()).createNode("mtlximage")
                 try:
@@ -118,7 +123,7 @@ class CAT_GeometryImport:
                     self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_scheme[name])
                     mtlx_diplacement.parm("scale").set(0.01)
             mat_x.layoutChildren()
-        mat_lib.layoutChildren()
+        # mat_lib.layoutChildren()
 
 
     def patch_texture(self, source_texture, target_text_name):
