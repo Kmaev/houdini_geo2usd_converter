@@ -92,14 +92,9 @@ class PublishDialog(QtWidgets.QDialog):
         if not lib:
             return
         for i in assets_list:
-            asset_folder = i.split("/")
-            name = asset_folder.pop()
-            name = name.split(".")
 
-            file_type = name.pop()
-            name = "".join(name)
-            if lib == "MS":
-                name = asset_folder.pop()
+            name = self.read[lib][i]["asset_name"]
+
             item = QtWidgets.QListWidgetItem()
             item.setText(name)
             item.setData(1, i)

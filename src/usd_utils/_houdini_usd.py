@@ -1,4 +1,6 @@
 import json
+import os.path
+
 import hou
 import re
 
@@ -93,9 +95,9 @@ class CAT_GeometryImport:
             mtlx_diplacement = output.createInputNode(1, "mtlxdisplacement")
             mat_properties = output.createInputNode(2, "kma_material_properties")
 
-            match = re.search("\d*({})\d*".format("Gold"), mat)
-            if match:
-                mtlx_st_surface.parm("specular_IOR").set(0.47)
+            # match = re.search("\d*({})\d*".format("Gold"), mat)
+            # if match:
+            #     mtlx_st_surface.parm("specular_IOR").set(0.47)
 
             for texture in _materials[mat]["textures"]:
                 texture_node = hou.node(mat_x.path()).createNode("mtlximage")
@@ -123,7 +125,7 @@ class CAT_GeometryImport:
                     self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_scheme[name])
                     mtlx_diplacement.parm("scale").set(0.01)
             mat_x.layoutChildren()
-        # mat_lib.layoutChildren()
+        mat_lib.layoutChildren()
 
 
     def patch_texture(self, source_texture, target_text_name):
@@ -199,7 +201,7 @@ class KB_GeometryImport(CAT_GeometryImport):
 
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
         usd_rop.setInput(0, assign_mat)
-        hou.node(self.stage_path).layoutChildren()
+
 
 
         if self.execute_rop:
@@ -263,7 +265,7 @@ class MS_GeometryImport(CAT_GeometryImport):
         transform.setDisplayFlag(True)
         usd_rop = self.create_usd_rop(geometry_file, read, self.source_tag)
         usd_rop.setInput(0, transform)
-        hou.node(self.stage_path).layoutChildren()
+
 
         if self.execute_rop:
             usd_rop.parm("execute").pressButton()
@@ -306,8 +308,7 @@ class CAT_ExtractMaterialsData:
                 op.updateLongProgress(files.index(file) / float(len(files))), "{}/{}".format(files.index(file) + 1,len(files))
 
                 # Getting geo name
-                geo_name = geometry_file.split("/")[-1]
-                geo_name = geo_name.split(".")[0]
+                geo_name = self.get_geometry_name(node, geometry_file, self.source_tag)
                 try:
                 # Writing geomjetry file name and initializing textures dictionary
                     read[self.source_tag][geometry_file]={"asset_name": geo_name, "materials": {}}
@@ -352,6 +353,32 @@ class CAT_ExtractMaterialsData:
                 text = "{} asset added to metadata".format(len(files))
                 user_response = hou.ui.displayMessage(
                     text)
+    def get_geometry_name(self, node, geometry_file, source_tag):
+        geo_name = geometry_file.split("/")[-1]
+        geo_name = geo_name.split(".")[0]
+        if source_tag == "MS":
+            try:
+                geo_name = geo_name.split("_").pop(0)
+                _dir = os.path.dirname(os.path.realpath(geometry_file))
+                json_file =  r"{}\{}.json".format(_dir, geo_name)
+                with open(json_file, "r") as data_file:
+                    read = json.load(data_file)
+                geo_name = read["semanticTags"]["name"]
+            except:
+                geo_name = node.path().split("/")[2]
+        return geo_name
+
+    def add_thumb(self, geometry_file):
+        _dir = os.path.dirname(os.path.realpath(geometry_file))
+        for file in os.listdir(_dir):
+            if os.path.isfile(os.path.join(_dir, file)):
+                match = re.search("\d*({})\d*".format("review"), file.lower())
+                if match:
+                    thumb_path = os.path.join(_dir, file)
+
+            else:
+                thumb_path = None
+        return thumb_path
 
 
 
