@@ -309,12 +309,18 @@ class CAT_ExtractMaterialsData:
 
                 # Getting geo name
                 geo_name = self.get_geometry_name(node, geometry_file, self.source_tag)
+
                 try:
                 # Writing geomjetry file name and initializing textures dictionary
                     read[self.source_tag][geometry_file]={"asset_name": geo_name, "materials": {}}
                 except:
                     read[self.source_tag] = {geometry_file: {}}
                     read[self.source_tag][geometry_file] = {"asset_name": geo_name, "materials": {}}
+
+                # Add Thumbnail
+                thumbnail = self.add_thumbnail(geometry_file)
+                if thumbnail:
+                    read[self.source_tag][geometry_file]["thumbnail"] = thumbnail
 
                 # Packing geo based on material path
                 pack_all = node.input(files.index(file)).createOutputNode("pack")  # this is why pack node is created twice
@@ -364,21 +370,22 @@ class CAT_ExtractMaterialsData:
                 with open(json_file, "r") as data_file:
                     read = json.load(data_file)
                 geo_name = read["semanticTags"]["name"]
+                geo_name.repalce("", "_")
             except:
                 geo_name = node.path().split("/")[2]
         return geo_name
 
-    def add_thumb(self, geometry_file):
+    def add_thumbnail(self, geometry_file):
         _dir = os.path.dirname(os.path.realpath(geometry_file))
         for file in os.listdir(_dir):
             if os.path.isfile(os.path.join(_dir, file)):
                 match = re.search("\d*({})\d*".format("review"), file.lower())
                 if match:
                     thumb_path = os.path.join(_dir, file)
+                    return thumb_path
 
-            else:
-                thumb_path = None
-        return thumb_path
+
+
 
 
 
