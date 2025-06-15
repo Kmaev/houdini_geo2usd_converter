@@ -4,6 +4,7 @@ import os.path
 import hou
 import re
 
+#TODO 1: Change import path to the relative path
 
 class CAT_GeometryImport:
     def __init__(self, json_file, import_render, source_tag, add_displacement=False, add_extra_tex=False):
@@ -11,8 +12,16 @@ class CAT_GeometryImport:
         self.metadata = json_file
         self.import_render = import_render
         self.source_tag = source_tag
-        self.parameters_scheme = r"E:\dev\cat\src\usd_utils\parameters_scheme.json"
-        self.texture_scheme = r"E:\dev\cat\src\usd_utils\inputs_scheme.json"
+
+        script_dir = os.path.dirname(__file__)
+        parm_schema = os.path.join(script_dir, "parameters_schema.json")
+        self.parameters_scheme =os.path.normpath(parm_schema)
+
+
+        script_dir = os.path.dirname(__file__)
+        texture_schema = os.path.join(script_dir, "inputs_schema.json")
+
+        self.texture_schema = os.path.normpath(texture_schema)
         self.wrangle_code = ""
         self.add_extra_tex = add_extra_tex
         self.add_displacement = add_displacement
@@ -63,7 +72,7 @@ class CAT_GeometryImport:
     def create_material_lib(self):
         mat_lib = hou.node(self.stage_path).createNode("materiallibrary")
         mat_lib.parm("matpathprefix").set("/main/materials/")
-        # mat_lib.setInput(0, graft_stages)
+
 
         return mat_lib
 
@@ -108,7 +117,7 @@ class CAT_GeometryImport:
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
             if self.add_extra_tex:
-                with open(self.texture_scheme, "r") as tex_scheme_file:
+                with open(self.texture_schema, "r") as tex_scheme_file:
                     tex_scheme_read = json.load(tex_scheme_file)
                 tex_scheme = tex_scheme_read[self.source_tag]["surface"]
                 for name in tex_scheme:
@@ -116,7 +125,7 @@ class CAT_GeometryImport:
                     new_tex = self.patch_texture(_tex_data[1], name)
                     self.add_texture(new_tex, mat_x, mtlx_st_surface, tex_scheme[name])
             if self.add_displacement:
-                with open(self.texture_scheme, "r") as tex_scheme_file:
+                with open(self.texture_schema, "r") as tex_scheme_file:
                     tex_scheme_read = json.load(tex_scheme_file)
                 tex_scheme = tex_scheme_read[self.source_tag]["displacement"]
                 for name in tex_scheme:
@@ -192,7 +201,7 @@ class KB_GeometryImport(CAT_GeometryImport):
                     + sop_create.name()
                     + "/"
                     + mat
-                    + "*"  # added to make the same material librery work with destruction
+                    + "*"  # added to make the same material library work with destruction
             )
 
             assign_mat.parm("primpattern{}".format(_materials.index(mat) + 1)).set(prim_path)
@@ -374,7 +383,7 @@ class CAT_ExtractMaterialsData:
             except:
                 geo_name = node.path().split("/")[2]
         return geo_name
-
+#TODO 2 Review this fucntion logic there should be returns
     def add_thumbnail(self, geometry_file):
         _dir = os.path.dirname(os.path.realpath(geometry_file))
         for file in os.listdir(_dir):

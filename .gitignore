@@ -4,5 +4,5 @@ hou_assets/hda/backup/*
 hda/backup/*
 *.bgeo.sc
 *.abc
-resources/publish_test*
+usd_utils/resources/publish_test*
 *.idea

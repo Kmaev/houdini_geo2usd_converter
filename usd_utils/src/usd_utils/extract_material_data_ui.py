@@ -2,10 +2,9 @@ from importlib import reload
 from PySide2 import QtWidgets, QtCore
 import os
 import hou
-import _houdini_usd
+from usd_utils import _houdini_usd
+
 reload(_houdini_usd)
-
-
 
 
 class PublishDialog(QtWidgets.QDialog):
@@ -13,7 +12,10 @@ class PublishDialog(QtWidgets.QDialog):
         super(PublishDialog, self).__init__(parent=parent)
         self.resize(300, 100)
         self.setWindowTitle('CAT Save metadata')
-        self.metadata = r'E:\dev\cat\src\usd_utils\assets_metadata.json'
+
+        script_dir = os.path.dirname(__file__)
+        assets_metadata_path = os.path.join(script_dir, "assets_metadata.json")
+        self.metadata = os.path.normpath(assets_metadata_path)
 
         self.central_layout = QtWidgets.QVBoxLayout()
         self.setLayout(self.central_layout)
@@ -34,9 +36,15 @@ class PublishDialog(QtWidgets.QDialog):
 
         self.save_button.clicked.connect(self.save)
 
-        style_folder = r"E:\dev\cat\resources"
-        with open(os.path.join(style_folder, "style_hou.qss"), 'r') as f:
+        # Add Styles:
+        script_dir = os.path.dirname(__file__)
+        resources_path = os.path.join(script_dir, "..", "..", "resources")
+
+        resources_path = os.path.normpath(resources_path)
+
+        with open(os.path.join(resources_path, "style_hou.qss"), 'r') as f:
             self.setStyleSheet(f.read())
+
     def save(self):
         if self.name_input.text() != "":
             template1 = _houdini_usd.CAT_ExtractMaterialsData(self.metadata, self.name_input.text())
@@ -45,14 +53,14 @@ class PublishDialog(QtWidgets.QDialog):
             self.close()
         else:
             if hou.isUIAvailable():
-                    text = "Type Library Tag"
-                    user_response = hou.ui.displayMessage(
-                        text)
-
-
+                text = "Type Library Tag"
+                user_response = hou.ui.displayMessage(
+                    text)
 
 
 dialog = None
+
+
 def show_houdini():
     import hou
     global dialog
