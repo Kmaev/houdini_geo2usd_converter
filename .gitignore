@@ -1,0 +1,8 @@
+*.pyc
+scenes/backup/*
+hou_assets/hda/backup/*
+hda/backup/*
+*.bgeo.sc
+*.abc
+usd_utils/resources/publish_test*
+*.idea
