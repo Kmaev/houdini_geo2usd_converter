@@ -1,8 +1,13 @@
 import json
-import os.path
-import re
 
 import hou
+
+"""
+    This class extracts material metadata from selected geometry in a Houdini scene and saves it as JSON.
+
+    :param json_file: Path to the JSON metadata file to read from and write to.
+    :param source_tag: Identifier tag for the source (e.g., 'MS', 'KB') to separate assets from different libraries
+    """
 
 
 class ExtractMaterialsData:
@@ -11,6 +16,9 @@ class ExtractMaterialsData:
         self.source_tag = source_tag
 
     def read_geo_file(self, node):
+        """
+        Traverse the node graph from the given starting node and collect all file nodes.
+        """
         queue = [node]
         files = []
         while len(queue) > 0:
@@ -22,6 +30,10 @@ class ExtractMaterialsData:
         return files
 
     def get_geometry_data(self, node):
+        """
+        Extract geometry and material texture data from file nodes,
+        updates or creates metadata entries in the JSON file.
+        """
         # open json file
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
@@ -45,14 +57,9 @@ class ExtractMaterialsData:
                     read[self.source_tag] = {geometry_file: {}}
                     read[self.source_tag][geometry_file] = {"asset_name": geo_name, "materials": {}}
 
-                # Add Thumbnail
-                thumbnail = self.add_thumbnail(geometry_file)
-                if thumbnail:
-                    read[self.source_tag][geometry_file]["thumbnail"] = thumbnail
-
                 # Packing geo based on material path
                 pack_all = node.input(files.index(file)).createOutputNode(
-                    "pack")  # this is why pack node is created twice
+                    "pack")
                 pack_all.parm("packbyname").set(True)
                 pack_all.parm("nameattribute").set("shop_materialpath")
                 pack_all.parm("transfer_attributes").set("shop_materialpath")
@@ -84,35 +91,17 @@ class ExtractMaterialsData:
         if hou.isUIAvailable():
             if len(files) > 1:
                 text = "{} assets added to metadata".format(len(files))
-                user_response = hou.ui.displayMessage(
-                    text)
+                hou.ui.displayMessage(text)
             else:
                 text = "{} asset added to metadata".format(len(files))
-                user_response = hou.ui.displayMessage(
-                    text)
+                hou.ui.displayMessage(text)
 
     def get_geometry_name(self, node, geometry_file, source_tag):
+        """
+         Extracts asset name from the geometry file path.
+
+        """
         geo_name = geometry_file.split("/")[-1]
         geo_name = geo_name.split(".")[0]
-        if source_tag == "MS":
-            try:
-                geo_name = geo_name.split("_").pop(0)
-                _dir = os.path.dirname(os.path.realpath(geometry_file))
-                json_file = r"{}\{}.json".format(_dir, geo_name)
-                with open(json_file, "r") as data_file:
-                    read = json.load(data_file)
-                geo_name = read["semanticTags"]["name"]
-                geo_name.repalce("", "_")
-            except:
-                geo_name = node.path().split("/")[2]
-        return geo_name
 
-    # TODO 2 Review this fucntion logic there should be returns
-    def add_thumbnail(self, geometry_file):
-        _dir = os.path.dirname(os.path.realpath(geometry_file))
-        for file in os.listdir(_dir):
-            if os.path.isfile(os.path.join(_dir, file)):
-                match = re.search("\d*({})\d*".format("review"), file.lower())
-                if match:
-                    thumb_path = os.path.join(_dir, file)
-                    return thumb_path
+        return geo_name
