@@ -51,7 +51,7 @@ class ExtractMaterialsData:
                 geo_name = self.get_geometry_name(node, geometry_file, self.source_tag)
 
                 try:
-                    # Writing geomjetry file name and initializing textures dictionary
+                    # Writing geometry file name and initializing textures dictionary
                     read[self.source_tag][geometry_file] = {"asset_name": geo_name, "materials": {}}
                 except:
                     read[self.source_tag] = {geometry_file: {}}

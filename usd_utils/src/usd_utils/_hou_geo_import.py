@@ -35,6 +35,9 @@ class GeometryImport:
         self.add_extra_tex = add_extra_tex
         self.add_displacement = add_displacement
 
+        with open(self.metadata, "r") as read_file:
+            self.metadata_read = json.load(read_file)
+
         # Create main usd template based on json file data
 
     def create_main_template(self, geometry_file):
@@ -127,15 +130,11 @@ class GeometryImport:
         # Read schema to convert Mantra texture entries to MaterialX
         with open(self.parameters_scheme, "r") as scheme_file:
             scheme_read = json.load(scheme_file)
-        scheme = scheme_read[self.import_render]
+        schema = scheme_read[self.import_render]
 
         mat_lib_path = hou.node(mat_lib.path())
 
-        # Get materials metadata
-        with open(self.metadata, "r") as read_file:
-            read = json.load(read_file)
-
-        _materials = read[self.source_tag][geometry_file]["materials"]
+        _materials = self.metadata_read[self.source_tag][geometry_file]["materials"]
 
         # Create a MaterialX node for each material, generate textures, and connect everything accordingly
         for mat in _materials:
@@ -149,29 +148,30 @@ class GeometryImport:
             for texture in _materials[mat]["textures"]:
                 texture_node = hou.node(mat_x.path()).createNode("mtlximage")
                 try:
-                    input = mtlx_st_surface.inputIndex(scheme[texture])
+                    input = mtlx_st_surface.inputIndex(schema[texture])
                     mtlx_st_surface.setInput(input, texture_node)
                     texture_node.parm("file").set(_materials[mat]["textures"][texture])
                 except:
                     print("texture skipped {}".format(format(_materials[mat]["textures"][texture])))
 
-            # If add extra textures set to True AO and displacement textures will be created
+            # If add extra textures set to True AO and displacement textures will be created based on texture schema
+
+            if self.add_extra_tex or self.add_displacement:
+                with open(self.texture_schema, "r") as tex_schema_file:
+                    tex_schema_read = json.load(tex_schema_file)
+
             if self.add_extra_tex:
-                with open(self.texture_schema, "r") as tex_scheme_file:
-                    tex_scheme_read = json.load(tex_scheme_file)
-                tex_scheme = tex_scheme_read[self.source_tag]["surface"]
-                for name in tex_scheme:
+                tex_schema = tex_schema_read[self.source_tag]["surface"]
+                for name in tex_schema:
                     _tex_data = list(_materials[mat]["textures"].items())[0]
                     new_tex = self.patch_texture(_tex_data[1], name)
-                    self.add_texture(new_tex, mat_x, mtlx_st_surface, tex_scheme[name])
+                    self.add_texture(new_tex, mat_x, mtlx_st_surface, tex_schema[name])
             if self.add_displacement:
-                with open(self.texture_schema, "r") as tex_scheme_file:
-                    tex_scheme_read = json.load(tex_scheme_file)
-                tex_scheme = tex_scheme_read[self.source_tag]["displacement"]
-                for name in tex_scheme:
+                tex_schema = tex_schema_read[self.source_tag]["displacement"]
+                for name in tex_schema:
                     _tex_data = list(_materials[mat]["textures"].items())[0]
                     new_tex = self.patch_texture(_tex_data[1], name)
-                    self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_scheme[name])
+                    self.add_texture(new_tex, mat_x, mtlx_diplacement, tex_schema[name])
                     mtlx_diplacement.parm("scale").set(0.01)
             mat_x.layoutChildren()
         mat_lib.layoutChildren()
@@ -199,6 +199,7 @@ class GeometryImport:
         """
         Iterates over metadata entries and builds USD templates for all geometry,
         optionally cleaning up the stage after each.
+
         """
         with open(self.metadata, "r") as read_file:
             read = json.load(read_file)
