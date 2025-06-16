@@ -1,5 +1,9 @@
 ## Houdini Geometry to USD Converter
 
+Demo Presentation:
+
+https://vimeo.com/930979091
+
 ### Problem to Solve
 
 Marketplace assets often arrive as geometry files and Mantra shading setups that aren’t USD‑ready. This tool eliminates the need for repetitive manual steps:
