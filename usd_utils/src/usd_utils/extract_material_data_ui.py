@@ -2,9 +2,10 @@ from importlib import reload
 from PySide2 import QtWidgets, QtCore
 import os
 import hou
-from usd_utils import _houdini_usd
+from usd_utils import _hou_extract_material_data
 
-reload(_houdini_usd)
+
+reload(_hou_extract_material_data)
 
 
 class PublishDialog(QtWidgets.QDialog):
@@ -47,7 +48,7 @@ class PublishDialog(QtWidgets.QDialog):
 
     def save(self):
         if self.name_input.text() != "":
-            template1 = _houdini_usd.CAT_ExtractMaterialsData(self.metadata, self.name_input.text())
+            template1 = _hou_extract_material_data.ExtractMaterialsData(self.metadata, self.name_input.text())
             for node in hou.selectedNodes():
                 template1.get_geometry_data(node)
             self.close()
