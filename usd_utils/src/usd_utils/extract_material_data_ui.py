@@ -1,10 +1,12 @@
-from importlib import reload
-from PySide2 import QtWidgets, QtCore
 import os
-import hou
-from usd_utils import _houdini_usd
+from importlib import reload
 
-reload(_houdini_usd)
+import hou
+from PySide2 import QtWidgets, QtCore
+
+from usd_utils import _hou_extract_material_data
+
+reload(_hou_extract_material_data)
 
 
 class PublishDialog(QtWidgets.QDialog):
@@ -46,16 +48,19 @@ class PublishDialog(QtWidgets.QDialog):
             self.setStyleSheet(f.read())
 
     def save(self):
+        """
+        Triggered when the user clicks the “Save” button.
+        Creates an ExtractMaterialsData instance and saves geometry and material data into a JSON file.        :return:
+        """
         if self.name_input.text() != "":
-            template1 = _houdini_usd.CAT_ExtractMaterialsData(self.metadata, self.name_input.text())
+            template1 = _hou_extract_material_data.ExtractMaterialsData(self.metadata, self.name_input.text())
             for node in hou.selectedNodes():
                 template1.get_geometry_data(node)
             self.close()
         else:
             if hou.isUIAvailable():
                 text = "Type Library Tag"
-                user_response = hou.ui.displayMessage(
-                    text)
+                hou.ui.displayMessage(text)
 
 
 dialog = None

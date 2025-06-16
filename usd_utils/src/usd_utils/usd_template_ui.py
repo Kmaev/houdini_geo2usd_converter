@@ -1,8 +1,10 @@
-from importlib import reload
-from PySide2 import QtWidgets
 import json
 import os
+from importlib import reload
+
 import hou
+from PySide2 import QtWidgets
+
 from usd_utils import _houdini_usd
 
 reload(_houdini_usd)
@@ -16,8 +18,7 @@ class PublishDialog(QtWidgets.QDialog):
         assets_metadata_path = os.path.join(script_dir, "assets_metadata.json")
         self.project_file = os.path.normpath(assets_metadata_path)
 
-        # self.project_file = r"E:\dev\cat\src\usd_utils\assets_metadata.json"
-        libraries = {"KB": "KitBash", "MS": "Megascans"}
+        libraries = {"KB": "KitBash"}
         self.selected_assets = []
 
         self.central_layout = QtWidgets.QVBoxLayout()
@@ -134,13 +135,9 @@ class PublishDialog(QtWidgets.QDialog):
                 op.updateLongProgress(self.selected_assets.index(i) / float(len(self.selected_assets)),
                                       "Converting to .usd {}/{}".format(self.selected_assets.index(i) + 1,
                                                                         len(self.selected_assets)))
-                if lib_tag == "MS":
-                    template1 = _houdini_usd.MS_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
-                                                               add_missing_tex, True)
-
-                elif lib_tag == "KB":
-                    template1 = _houdini_usd.KB_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
-                                                               add_missing_tex, True)
+                if lib_tag == "KB":
+                    template1 = _houdini_usd.KBGeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
+                                                              add_missing_tex, True)
                 template1.create_main_template(i)
 
     def onLoadTemplate(self):
@@ -154,13 +151,9 @@ class PublishDialog(QtWidgets.QDialog):
                 op.updateLongProgress(self.selected_assets.index(i) / float(len(self.selected_assets)),
                                       "Loading Assets {}/{}".format(self.selected_assets.index(i) + 1,
                                                                     len(self.selected_assets)))
-                if lib_tag == "MS":
-                    template1 = _houdini_usd.MS_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
-                                                               add_missing_tex)
-
-                elif lib_tag == "KB":
-                    template1 = _houdini_usd.KB_GeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
-                                                               add_missing_tex)
+                if lib_tag == "KB":
+                    template1 = _houdini_usd.KBGeometryImport(self.project_file, "mantra", lib_tag, add_displ_tex,
+                                                              add_missing_tex)
                 template1.create_main_template(i)
 
 
